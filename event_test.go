@@ -90,7 +90,7 @@ func TestNewEvent(t *testing.T) {
 			t.Fatalf("marshal error: %v", err)
 		}
 
-		var parsed map[string]interface{}
+		var parsed map[string]any
 		if err := json.Unmarshal(data, &parsed); err != nil {
 			t.Fatalf("unmarshal error: %v", err)
 		}
