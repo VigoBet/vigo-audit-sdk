@@ -47,6 +47,64 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_site
   WHERE site_id IS NOT NULL;`
 }
 
+// AuditLogExtensionsSQL adds the plan-0.3 columns to admin_audit_log.
+// Every column is nullable; pre-existing rows remain valid.
+// Idempotent via ADD COLUMN IF NOT EXISTS.
+func AuditLogExtensionsSQL() string {
+	return `ALTER TABLE admin_audit_log
+    ADD COLUMN IF NOT EXISTS target_type_v2 VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS payload_diff JSONB,
+    ADD COLUMN IF NOT EXISTS permission_key VARCHAR(128),
+    ADD COLUMN IF NOT EXISTS outcome VARCHAR(16),
+    ADD COLUMN IF NOT EXISTS failure_reason TEXT,
+    ADD COLUMN IF NOT EXISTS trace_id VARCHAR(64),
+    ADD COLUMN IF NOT EXISTS ip INET,
+    ADD COLUMN IF NOT EXISTS parent_actor_account_id UUID,
+    ADD COLUMN IF NOT EXISTS tenant_id UUID,
+    ADD COLUMN IF NOT EXISTS source_service VARCHAR(64);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant
+    ON admin_audit_log (tenant_id, created_at DESC)
+    WHERE tenant_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_permission
+    ON admin_audit_log (permission_key, created_at DESC)
+    WHERE permission_key IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_source
+    ON admin_audit_log (source_service, created_at DESC)
+    WHERE source_service IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_trace
+    ON admin_audit_log (trace_id)
+    WHERE trace_id IS NOT NULL;`
+}
+
+// ReadAuditMigrationSQL creates the admin_read_audit table per spec §2.8.3.
+// Used to track high-sensitivity PII read operations (GDPR export, flag
+// history, impersonation, audit-viewer PII filters, login-events IP filter,
+// device detail, comms log, notes-with-body, account export job status,
+// cross-tenant segment resolution).
+func ReadAuditMigrationSQL() string {
+	return `CREATE TABLE IF NOT EXISTS admin_read_audit (
+    id UUID PRIMARY KEY,
+    actor_account_id UUID NOT NULL,
+    tenant_id UUID,
+    endpoint VARCHAR(256) NOT NULL,
+    target_type VARCHAR(64) NOT NULL,
+    target_id VARCHAR(64) NOT NULL,
+    accessed_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    trace_id VARCHAR(64),
+    source_service VARCHAR(64)
+);
+
+CREATE INDEX IF NOT EXISTS idx_read_audit_actor
+    ON admin_read_audit (actor_account_id, accessed_at DESC);
+
+CREATE INDEX IF NOT EXISTS idx_read_audit_target
+    ON admin_read_audit (target_type, target_id, accessed_at DESC);`
+}
+
 func HistoricalMigrationSQL() string {
 	return `INSERT INTO admin_audit_log (id, service, actor_type, actor_id, target_type, target_id, site_id, action, metadata, note, reference_id, created_at)
 SELECT

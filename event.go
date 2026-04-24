@@ -21,6 +21,18 @@ type AuditEvent struct {
 	Note        *string         `json:"note,omitempty"`
 	ReferenceID *string         `json:"reference_id,omitempty"`
 	Timestamp   time.Time       `json:"timestamp"`
+
+	// Plan 0.3 extensions — optional; pre-existing producers won't set these.
+	TenantID             *string         `json:"tenant_id,omitempty"`
+	TargetTypeV2         *string         `json:"target_type_v2,omitempty"`
+	PayloadDiff          json.RawMessage `json:"payload_diff,omitempty"`
+	PermissionKey        *string         `json:"permission_key,omitempty"`
+	Outcome              *string         `json:"outcome,omitempty"`
+	FailureReason        *string         `json:"failure_reason,omitempty"`
+	TraceID              *string         `json:"trace_id,omitempty"`
+	IP                   *string         `json:"ip,omitempty"`
+	ParentActorAccountID *string         `json:"parent_actor_account_id,omitempty"`
+	SourceService        *string         `json:"source_service,omitempty"`
 }
 
 type EventOption func(*AuditEvent)
@@ -76,6 +88,82 @@ func WithReferenceID(refID string) EventOption {
 	return func(e *AuditEvent) {
 		if refID != "" {
 			e.ReferenceID = &refID
+		}
+	}
+}
+
+func WithPayloadDiff(raw json.RawMessage) EventOption {
+	return func(e *AuditEvent) { e.PayloadDiff = raw }
+}
+
+func WithPermissionKey(k string) EventOption {
+	return func(e *AuditEvent) {
+		if k != "" {
+			e.PermissionKey = &k
+		}
+	}
+}
+
+func WithOutcome(o string) EventOption {
+	return func(e *AuditEvent) {
+		if o != "" {
+			e.Outcome = &o
+		}
+	}
+}
+
+func WithFailureReason(r string) EventOption {
+	return func(e *AuditEvent) {
+		if r != "" {
+			e.FailureReason = &r
+		}
+	}
+}
+
+func WithTraceID(t string) EventOption {
+	return func(e *AuditEvent) {
+		if t != "" {
+			e.TraceID = &t
+		}
+	}
+}
+
+func WithIP(ip string) EventOption {
+	return func(e *AuditEvent) {
+		if ip != "" {
+			e.IP = &ip
+		}
+	}
+}
+
+func WithParentActorAccountID(id string) EventOption {
+	return func(e *AuditEvent) {
+		if id != "" {
+			e.ParentActorAccountID = &id
+		}
+	}
+}
+
+func WithTenantID(id string) EventOption {
+	return func(e *AuditEvent) {
+		if id != "" {
+			e.TenantID = &id
+		}
+	}
+}
+
+func WithTargetTypeV2(t string) EventOption {
+	return func(e *AuditEvent) {
+		if t != "" {
+			e.TargetTypeV2 = &t
+		}
+	}
+}
+
+func WithSourceService(s string) EventOption {
+	return func(e *AuditEvent) {
+		if s != "" {
+			e.SourceService = &s
 		}
 	}
 }
