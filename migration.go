@@ -24,6 +24,7 @@ func AuditLogMigrationSQL() string {
   target_type VARCHAR NOT NULL,
   target_id VARCHAR NOT NULL,
   site_id VARCHAR,
+  tenant_domain VARCHAR,
   action VARCHAR NOT NULL,
   metadata JSONB,
   note VARCHAR,
@@ -44,7 +45,11 @@ CREATE INDEX IF NOT EXISTS idx_audit_log_action
 
 CREATE INDEX IF NOT EXISTS idx_audit_log_site
   ON admin_audit_log (site_id, created_at DESC)
-  WHERE site_id IS NOT NULL;`
+  WHERE site_id IS NOT NULL;
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_tenant_domain
+  ON admin_audit_log (tenant_domain, created_at DESC)
+  WHERE tenant_domain IS NOT NULL;`
 }
 
 func HistoricalMigrationSQL() string {
