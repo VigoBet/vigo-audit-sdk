@@ -78,6 +78,8 @@ EXCLUDES=(
   ':!bun.lockb'
   ':!.site-id-migration-baseline'
   ':!scripts/site-id-check.sh'
+  ':!.github/workflows/lint-site-id.yml'
+  ':!.githooks/pre-commit'
 )
 
 scan_full() {
