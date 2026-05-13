@@ -16,9 +16,13 @@ func TestNewEvent(t *testing.T) {
 			"456",
 			audit.WithActor("admin", "123"),
 			audit.WithSiteID("somchaifanclub"),
+			audit.WithTenantDomain("alamak.world"),
 			audit.WithMetadata(json.RawMessage(`{"amount":100}`)),
 			audit.WithNote("VIP compensation"),
 		)
+		if result.TenantDomain == nil || *result.TenantDomain != "alamak.world" {
+			t.Errorf("expected tenant_domain 'alamak.world', got %v", result.TenantDomain)
+		}
 
 		if result.ID == "" {
 			t.Error("expected non-empty ID")
@@ -109,6 +113,95 @@ func TestNewEvent(t *testing.T) {
 		result := event.PartitionKey()
 		if result != expected {
 			t.Errorf("expected partition key %q, got %q", expected, result)
+		}
+	})
+
+	t.Run("WithTenantDomain populates the field with snake_case JSON key", func(t *testing.T) {
+		event := audit.NewEvent("core-auth", "tenant.create", "tenant", "t-1",
+			audit.WithTenantDomain("alamak.world"))
+		if event.TenantDomain == nil || *event.TenantDomain != "alamak.world" {
+			t.Fatalf("expected tenant_domain populated, got %v", event.TenantDomain)
+		}
+		data, err := json.Marshal(event)
+		if err != nil {
+			t.Fatalf("marshal error: %v", err)
+		}
+		var parsed map[string]any
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if got, ok := parsed["tenant_domain"]; !ok || got != "alamak.world" {
+			t.Errorf("expected tenant_domain in JSON, got %v (ok=%v)", got, ok)
+		}
+		if _, ok := parsed["tenantDomain"]; ok {
+			t.Error("camelCase tenantDomain leaked onto the wire")
+		}
+	})
+
+	t.Run("WithTenantDomain skips empty string", func(t *testing.T) {
+		event := audit.NewEvent("svc", "act", "user", "1", audit.WithTenantDomain(""))
+		if event.TenantDomain != nil {
+			t.Errorf("expected nil tenant_domain for empty input, got %v", event.TenantDomain)
+		}
+	})
+
+	t.Run("omitempty: tenant_domain absent from JSON when nil", func(t *testing.T) {
+		event := audit.NewEvent("svc", "act", "user", "1")
+		data, err := json.Marshal(event)
+		if err != nil {
+			t.Fatalf("marshal error: %v", err)
+		}
+		var parsed map[string]any
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if _, ok := parsed["tenant_domain"]; ok {
+			t.Error("expected tenant_domain absent (omitempty), but present")
+		}
+	})
+
+	t.Run("site_id and tenant_domain coexist (transition envelope)", func(t *testing.T) {
+		event := audit.NewEvent("core-auth", "user.update", "user", "u-1",
+			audit.WithSiteID("somchaifanclub"),
+			audit.WithTenantDomain("alamak.world"))
+		data, err := json.Marshal(event)
+		if err != nil {
+			t.Fatalf("marshal error: %v", err)
+		}
+		var parsed map[string]any
+		if err := json.Unmarshal(data, &parsed); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if parsed["site_id"] != "somchaifanclub" {
+			t.Errorf("expected site_id, got %v", parsed["site_id"])
+		}
+		if parsed["tenant_domain"] != "alamak.world" {
+			t.Errorf("expected tenant_domain, got %v", parsed["tenant_domain"])
+		}
+	})
+
+	t.Run("backwards compat: unmarshal payload without tenant_domain", func(t *testing.T) {
+		raw := []byte(`{"id":"x","service":"s","actor_type":"system","target_type":"user","target_id":"1","action":"a","timestamp":"2026-05-12T00:00:00Z"}`)
+		var event audit.AuditEvent
+		if err := json.Unmarshal(raw, &event); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if event.TenantDomain != nil {
+			t.Errorf("expected nil tenant_domain for legacy payload, got %v", event.TenantDomain)
+		}
+	})
+
+	t.Run("wire-compat smoke: TS-style payload unmarshals cleanly", func(t *testing.T) {
+		raw := []byte(`{"id":"01900000-0000-7000-8000-000000000000","service":"core-auth","actor_type":"staff","actor_id":"a-1","target_type":"user","target_id":"u-1","site_id":"somchaifanclub","tenant_domain":"alamak.world","action":"user.update","timestamp":"2026-05-12T00:00:00Z"}`)
+		var event audit.AuditEvent
+		if err := json.Unmarshal(raw, &event); err != nil {
+			t.Fatalf("unmarshal error: %v", err)
+		}
+		if event.SiteID == nil || *event.SiteID != "somchaifanclub" {
+			t.Errorf("site_id roundtrip failed: %v", event.SiteID)
+		}
+		if event.TenantDomain == nil || *event.TenantDomain != "alamak.world" {
+			t.Errorf("tenant_domain roundtrip failed: %v", event.TenantDomain)
 		}
 	})
 }
