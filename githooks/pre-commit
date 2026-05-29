@@ -1,0 +1,48 @@
+#!/bin/bash
+#
+# pre-commit — fast formatting check.
+#
+# Runs `gofmt -s -l` (and `goimports -l` when available) against
+# every staged Go file. Fails the commit if any file isn't formatted
+# and prints the exact one-shot fix command.
+#
+# This hook is intentionally fast (<1s on a normal commit). Heavy
+# checks (tests, build, vet) live in `pre-push` and CI — they
+# shouldn't gate every commit.
+#
+# Skip with: `git commit --no-verify` (used judiciously).
+
+set -e
+
+STAGED_GO_FILES=$(git diff --cached --name-only --diff-filter=ACM | grep '\.go$' || true)
+if [ -z "$STAGED_GO_FILES" ]; then
+    exit 0
+fi
+
+# gofmt -l prints the names of files whose formatting differs from
+# canonical. Empty output = clean. The -s flag enables simplifications
+# (e.g. for-range over slice → range), matching CI's invocation.
+UNFORMATTED=$(echo "$STAGED_GO_FILES" | xargs gofmt -s -l 2>/dev/null || true)
+if [ -n "$UNFORMATTED" ]; then
+    echo "❌ gofmt: the following files need formatting:"
+    echo "$UNFORMATTED" | sed 's/^/   /'
+    echo
+    echo "Fix with:"
+    echo "   gofmt -s -w $(echo "$UNFORMATTED" | tr '\n' ' ')"
+    exit 1
+fi
+
+# goimports if available — catches missing/unsorted imports.
+if command -v goimports >/dev/null 2>&1; then
+    UNIMPORTED=$(echo "$STAGED_GO_FILES" | xargs goimports -l 2>/dev/null || true)
+    if [ -n "$UNIMPORTED" ]; then
+        echo "❌ goimports: the following files have import issues:"
+        echo "$UNIMPORTED" | sed 's/^/   /'
+        echo
+        echo "Fix with:"
+        echo "   goimports -w $(echo "$UNIMPORTED" | tr '\n' ' ')"
+        exit 1
+    fi
+fi
+
+exit 0

@@ -1,0 +1,37 @@
+#!/bin/bash
+#
+# pre-push — minimal SDK variant.
+#
+# SDKs ship as libraries — no race detection, no security scan, no
+# gitleaks. Tests run against the SDK's own contract and should be
+# fast. The heavier service-repo pre-push (race tests, golangci-lint,
+# gitleaks, gosec) lives in vigo-core-games.
+#
+# Runs:
+#   - go vet ./...
+#   - go test ./...
+#   - go build ./...
+
+set -e
+
+echo "🚀 Running pre-push checks (SDK minimal)..."
+
+if [ ! -f "go.mod" ]; then
+    echo "❌ No go.mod found. This doesn't appear to be a Go project."
+    exit 1
+fi
+
+remote="$1"
+url="$2"
+echo "📡 Pushing to remote: $remote ($url)"
+
+echo "🔎 go vet ./..."
+go vet ./...
+
+echo "🧪 go test ./..."
+go test -timeout=5m ./...
+
+echo "🔨 go build ./..."
+go build ./...
+
+echo "✅ All pre-push checks passed!"
